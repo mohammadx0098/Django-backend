@@ -1,5 +1,6 @@
 # django app
-
+## front-end side
+go to repo => https://github.com/mohammadx0098/React-front-end
 ## Setup
 
 The first thing to do is to clone the repository:

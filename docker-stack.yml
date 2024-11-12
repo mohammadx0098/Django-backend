@@ -1,0 +1,84 @@
+version: '3.8'
+
+networks:
+  default:
+    name: charity-network
+  traefik_traefik-public:
+    external: true
+
+volumes:
+  postgres_data:
+  static_volume:
+
+
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: ./compose/local/django/Dockerfile
+    image: backend/charity/charity_django:1.0.0
+    build: .
+    # '/start' is the shell script used to run the service
+    command: /start
+    # this volume is used to map the files and folders on the host to the container
+    # so if we change code on the host, code in the docker container will also be changed
+    volumes:
+      - static_volume:/app/staticfiles
+      - .:/app
+    expose:
+      - 8000
+    # ports:
+    #   - 8000:8000
+    # env_file is used to manage the env variables of our project
+    env_file:
+      - ./.env/.dev-sample
+    depends_on:
+      - db
+    networks:
+      - traefik_traefik-public
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints: [node.role == manager]   
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=charity-network"
+      - "traefik.http.routers.djangoCharity.entrypoints=http"
+      - "traefik.http.routers.djangoCharity.rule=Host(`charityapi.${HOST}`)"
+      # - "traefik.http.routers.djangoCharity.rule=Host(`app.mohammadhabbasi.ir`)"
+      - "traefik.http.routers.djangoCharity.middlewares=https-redirect"
+      - "traefik.http.routers.djangoCharity-secure.entrypoints=https"
+      # - "traefik.http.middlewares.web-auth.basicauth.users=admin5:$$apr1$$e6T4zy8q$$UVo37aYP/i5ZH2QpK0ZoZ."
+      # - "traefik.http.routers.djangoCharity-secure.middlewares=web-auth"
+      - "traefik.http.routers.djangoCharity-secure.rule=Host(`charityapi.${HOST}`)"
+      # - "traefik.http.routers.djangoCharity-secure.rule=Host(`app.mohammadhabbasi.ir`)"
+      - "traefik.http.routers.djangoCharity-secure.tls=true"
+      - "traefik.http.routers.djangoCharity-secure.tls.options=default"
+      - "traefik.http.routers.djangoCharity-secure.tls.certresolver=mycert"
+      - "traefik.http.services.djangoCharity.loadbalancer.server.port=8000"
+
+
+  db:
+    image: postgres:14-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - "POSTGRES_DB=postgres"
+      - "POSTGRES_USER=postgres"
+      - "POSTGRES_PASSWORD=postgres"
+    command: postgres -c 'max_connections=500'
+    # ports:
+    #   - "5432:5432"
+    networks:
+      - traefik_traefik-public
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints: [node.role == manager]
